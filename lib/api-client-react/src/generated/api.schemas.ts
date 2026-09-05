@@ -61,6 +61,7 @@ export type QueryRemittanceParams = {
  * رقم كود الموظف
  * @minLength 1
  * @maxLength 64
+ * @pattern ^[0-9]+$
  */
 employeeCode: string;
 };

@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { Router, type IRouter, type Request } from "express";
-import { and, count, desc, eq } from "drizzle-orm";
+import { count, desc, eq } from "drizzle-orm";
 import * as XLSX from "xlsx";
 import { db, remittancesTable } from "@workspace/db";
 import {
@@ -15,7 +15,7 @@ import {
 
 const router: IRouter = Router();
 const requestWindowMs = 60_000;
-const requestLimit = 15;
+const requestLimit = 5;
 const requestCounts = new Map<string, { count: number; resetAt: number }>();
 
 type ParsedRow = {
@@ -49,6 +49,12 @@ function isRateLimited(ip: string): boolean {
   }
   current.count += 1;
   return current.count > requestLimit;
+}
+
+function normalizeEmployeeCode(value: string): string {
+  return value
+    .trim()
+    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x0660));
 }
 
 function cleanCell(value: unknown): string {
@@ -159,7 +165,12 @@ function clearExpiredRateLimits(): void {
 setInterval(clearExpiredRateLimits, requestWindowMs).unref();
 
 router.get("/remittances/query", async (req, res): Promise<void> => {
-  const parsedParams = QueryRemittanceQueryParams.safeParse(req.query);
+  const rawEmployeeCode = req.query.employeeCode;
+  const sanitizedQuery =
+    typeof rawEmployeeCode === "string"
+      ? { ...req.query, employeeCode: normalizeEmployeeCode(rawEmployeeCode) }
+      : req.query;
+  const parsedParams = QueryRemittanceQueryParams.safeParse(sanitizedQuery);
   if (!parsedParams.success) {
     res.status(400).json({ error: "رقم كود الموظف غير صالح." });
     return;

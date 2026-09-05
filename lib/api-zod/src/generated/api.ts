@@ -24,9 +24,11 @@ export const HealthCheckResponse = zod.object({
 export const queryRemittanceQueryEmployeeCodeMax = 64;
 
 
+export const queryRemittanceQueryEmployeeCodeRegExp = new RegExp('^[0-9]+$');
+
 
 export const QueryRemittanceQueryParams = zod.object({
-  "employeeCode": zod.coerce.string().min(1).max(queryRemittanceQueryEmployeeCodeMax).describe('رقم كود الموظف')
+  "employeeCode": zod.coerce.string().min(1).max(queryRemittanceQueryEmployeeCodeMax).regex(queryRemittanceQueryEmployeeCodeRegExp).describe('رقم كود الموظف')
 })
 
 export const QueryRemittanceResponse = zod.object({

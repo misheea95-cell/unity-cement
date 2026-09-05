@@ -31,6 +31,13 @@ import companyLogo from '@assets/FB_IMG_1788600273707_1788604800753.jpg';
 
 const queryClient = new QueryClient();
 
+function normalizeEmployeeCode(value: string): string {
+  return value
+    .trim()
+    .replace(/[٠-٩]/g, (digit) => String(digit.charCodeAt(0) - 0x0660))
+    .replace(/[^0-9]/g, '');
+}
+
 function BrandMark() {
   return (
     <div className="relative flex h-12 w-[4.5rem] shrink-0 items-center justify-center overflow-hidden rounded-[1.1rem] border border-white/80 bg-white shadow-[0_10px_24px_rgba(19,63,85,.2)]" aria-label="شعار أسمنت الوحدة">
@@ -211,9 +218,9 @@ function Home() {
 
   const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const normalized = inputCode.trim();
+    const normalized = normalizeEmployeeCode(inputCode);
     if (!normalized) {
-      setValidationError('أدخل كود الموظف للمتابعة.');
+      setValidationError('أدخل كود الموظف بالأرقام فقط.');
       inputRef.current?.focus();
       return;
     }
@@ -282,10 +289,12 @@ function Home() {
                       ref={inputRef}
                       id="employee-code"
                       value={inputCode}
-                      onChange={(event) => { setInputCode(event.target.value); setValidationError(''); }}
+                      onChange={(event) => { setInputCode(normalizeEmployeeCode(event.target.value)); setValidationError(''); }}
                       placeholder="أدخل الكود هنا"
                       className="focus-ring min-w-0 flex-1 bg-transparent px-3 py-3 text-sm font-semibold text-white outline-none placeholder:text-sky-100/40"
                       dir="ltr"
+                      inputMode="numeric"
+                      pattern="[0-9]*"
                       autoComplete="off"
                       aria-invalid={Boolean(validationError)}
                       data-testid="input-employee-code"
