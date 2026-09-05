@@ -74,12 +74,13 @@ export const ImportRemittancesHeader = zod.object({
 
 export const importRemittancesBodyFileNameMax = 255;
 
+export const importRemittancesBodyContentMax = 7500000;
 
 
 
 export const ImportRemittancesBody = zod.object({
   "fileName": zod.string().min(1).max(importRemittancesBodyFileNameMax),
-  "content": zod.string().min(1),
+  "content": zod.string().min(1).max(importRemittancesBodyContentMax),
   "encoding": zod.enum(['utf-8', 'base64'])
 })
 

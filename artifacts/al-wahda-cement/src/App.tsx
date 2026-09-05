@@ -29,7 +29,15 @@ import NotFound from '@/pages/not-found';
 import { Link, Route, Router as WouterRouter, Switch, useLocation } from 'wouter';
 import companyLogo from '@assets/FB_IMG_1788600273707_1788604800753.jpg';
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 60_000,
+      gcTime: 5 * 60_000,
+      retry: false,
+    },
+  },
+});
 
 function normalizeEmployeeCode(value: string): string {
   return value
@@ -347,6 +355,12 @@ function Admin() {
   const handleFile = (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      setFileError('حجم الملف يتجاوز الحد المسموح به وهو 5 ميغابايت.');
+      setSelectedFile(null);
+      setFileLabel('');
+      return;
+    }
     const extension = file.name.toLowerCase().split('.').pop();
     if (extension !== 'csv' && extension !== 'xlsx') {
       setFileError('اختر ملف CSV أو XLSX فقط.');

@@ -13,7 +13,10 @@ export interface RemittanceImportInput {
      * @maxLength 255
      */
   fileName: string;
-  /** @minLength 1 */
+  /**
+     * @minLength 1
+     * @maxLength 7500000
+     */
   content: string;
   encoding: RemittanceImportInputEncoding;
 }

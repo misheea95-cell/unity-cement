@@ -1,0 +1,1 @@
+- [Production capacity and DDoS protection](security-capacity.md) — app safeguards help resilience, but volumetric attacks require an edge WAF/CDN.

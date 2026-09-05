@@ -20,6 +20,12 @@ const requestCounts = new Map<string, { count: number; resetAt: number }>();
 const adminWindowMs = 15 * 60_000;
 const adminAttemptLimit = 5;
 const adminAttempts = new Map<string, { count: number; resetAt: number }>();
+const queryCacheTtlMs = 60_000;
+const queryCacheLimit = 10_000;
+const queryCache = new Map<string, { record: ParsedRow; expiresAt: number }>();
+const maxImportRecords = 100_000;
+const maxImportCellLength = 512;
+const maxImportFileBytes = 6 * 1024 * 1024;
 
 type ParsedRow = {
   employeeCode: string;
@@ -69,6 +75,31 @@ function clearAdminAttempts(ip: string): void {
   adminAttempts.delete(ip);
 }
 
+function getCachedRemittance(employeeCode: string): ParsedRow | undefined {
+  const cached = queryCache.get(employeeCode);
+  if (!cached) return undefined;
+  if (cached.expiresAt <= Date.now()) {
+    queryCache.delete(employeeCode);
+    return undefined;
+  }
+  queryCache.delete(employeeCode);
+  queryCache.set(employeeCode, cached);
+  return cached.record;
+}
+
+function cacheRemittance(record: ParsedRow): void {
+  queryCache.delete(record.employeeCode);
+  queryCache.set(record.employeeCode, {
+    record,
+    expiresAt: Date.now() + queryCacheTtlMs,
+  });
+  while (queryCache.size > queryCacheLimit) {
+    const oldestKey = queryCache.keys().next().value;
+    if (!oldestKey) break;
+    queryCache.delete(oldestKey);
+  }
+}
+
 function normalizeEmployeeCode(value: string): string {
   return value
     .trim()
@@ -76,9 +107,13 @@ function normalizeEmployeeCode(value: string): string {
 }
 
 function cleanCell(value: unknown): string {
-  return String(value ?? "")
+  const cleaned = String(value ?? "")
     .replace(/^\uFEFF/, "")
     .trim();
+  if (cleaned.length > maxImportCellLength) {
+    throw new Error("يوجد حقل يتجاوز الحجم المسموح به.");
+  }
+  return cleaned;
 }
 
 function parseCsvLine(line: string): string[] {
@@ -132,6 +167,9 @@ function parseCsv(content: string): string[][] {
 
 function rowsToRemittances(rows: string[][]): ParsedRow[] {
   if (rows.length < 2) throw new Error("يجب أن يحتوي الملف على صف عناوين وصف واحد على الأقل.");
+  if (rows.length - 1 > maxImportRecords) {
+    throw new Error("الملف يتجاوز العدد المسموح به من السجلات.");
+  }
   const header = rows[0].map(cleanCell);
   const headerNames = ["رقم كود الموظف", "رقم الحوالة", "العملة", "المرسل", "المستلم"];
   const indexes = headerNames.map((name) => header.indexOf(name));
@@ -145,7 +183,11 @@ function rowsToRemittances(rows: string[][]): ParsedRow[] {
     if (values.some((value) => !value)) {
       throw new Error(`يوجد حقل فارغ في الصف رقم ${rowIndex + 2}.`);
     }
-    const [employeeCode, transferNumber, currency, sender, beneficiary] = values;
+    const [rawEmployeeCode, transferNumber, currency, sender, beneficiary] = values;
+    const employeeCode = normalizeEmployeeCode(rawEmployeeCode);
+    if (!/^[0-9]{1,64}$/.test(employeeCode)) {
+      throw new Error(`كود الموظف غير صالح في الصف رقم ${rowIndex + 2}.`);
+    }
     if (seen.has(employeeCode)) {
       throw new Error(`كود الموظف مكرر في الصف رقم ${rowIndex + 2}.`);
     }
@@ -159,7 +201,19 @@ function rowsToRemittances(rows: string[][]): ParsedRow[] {
 
 function decodeImport(fileName: string, content: string, encoding: "utf-8" | "base64"): ParsedRow[] {
   const lowerName = fileName.toLowerCase();
-  if (encoding === "base64" || lowerName.endsWith(".xlsx") || lowerName.endsWith(".xls")) {
+  if (fileName.includes("/") || fileName.includes("\\") || fileName !== fileName.trim()) {
+    throw new Error("اسم الملف غير صالح.");
+  }
+  if (!lowerName.endsWith(".csv") && !lowerName.endsWith(".xlsx")) {
+    throw new Error("يسمح فقط بملفات CSV أو XLSX.");
+  }
+  const maxEncodedLength =
+    encoding === "base64" ? Math.ceil(maxImportFileBytes * 4 / 3) + 128 : maxImportFileBytes;
+  if (content.length > maxEncodedLength) {
+    throw new Error("حجم الملف يتجاوز الحد المسموح به.");
+  }
+  if (lowerName.endsWith(".xlsx")) {
+    if (encoding !== "base64") throw new Error("صيغة ترميز ملف Excel غير صالحة.");
     const workbook = XLSX.read(content, { type: "base64" });
     const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
     if (!firstSheet) throw new Error("تعذر قراءة ورقة البيانات من ملف Excel.");
@@ -170,6 +224,7 @@ function decodeImport(fileName: string, content: string, encoding: "utf-8" | "ba
     });
     return rowsToRemittances(rows.map((row) => row.map(cleanCell)));
   }
+  if (encoding !== "utf-8") throw new Error("صيغة ترميز ملف CSV غير صالحة.");
   return rowsToRemittances(parseCsv(content));
 }
 
@@ -177,6 +232,12 @@ function clearExpiredRateLimits(): void {
   const now = Date.now();
   for (const [ip, value] of requestCounts) {
     if (value.resetAt <= now) requestCounts.delete(ip);
+  }
+  for (const [ip, value] of adminAttempts) {
+    if (value.resetAt <= now) adminAttempts.delete(ip);
+  }
+  for (const [employeeCode, value] of queryCache) {
+    if (value.expiresAt <= now) queryCache.delete(employeeCode);
   }
 }
 
@@ -198,27 +259,35 @@ router.get("/remittances/query", async (req, res): Promise<void> => {
     return;
   }
 
-  const [record] = await db
-    .select({
-      employeeCode: remittancesTable.employeeCode,
-      transferNumber: remittancesTable.transferNumber,
-      currency: remittancesTable.currency,
-      sender: remittancesTable.sender,
-      beneficiary: remittancesTable.beneficiary,
-    })
-    .from(remittancesTable)
-    .where(eq(remittancesTable.employeeCode, parsedParams.data.employeeCode))
-    .limit(1);
+  res.setHeader("Cache-Control", "private, no-store");
+  const cachedRecord = getCachedRemittance(parsedParams.data.employeeCode);
+  const record =
+    cachedRecord ??
+    (
+      await db
+        .select({
+          employeeCode: remittancesTable.employeeCode,
+          transferNumber: remittancesTable.transferNumber,
+          currency: remittancesTable.currency,
+          sender: remittancesTable.sender,
+          beneficiary: remittancesTable.beneficiary,
+        })
+        .from(remittancesTable)
+        .where(eq(remittancesTable.employeeCode, parsedParams.data.employeeCode))
+        .limit(1)
+    )[0];
 
   if (!record) {
     res.status(404).json({ error: "لم يتم العثور على حوالة مرتبطة بهذا الكود." });
     return;
   }
 
+  if (!cachedRecord) cacheRemittance(record);
   res.json(QueryRemittanceResponse.parse(record));
 });
 
 router.get("/remittances/admin/summary", async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
   const ip = req.ip ?? "unknown";
   if (isAdminRateLimited(ip)) {
     res.status(429).json({ error: "تم إيقاف محاولات الإدارة مؤقتًا. حاول لاحقًا." });
@@ -253,6 +322,7 @@ router.get("/remittances/admin/summary", async (req, res): Promise<void> => {
 });
 
 router.post("/remittances/admin/import", async (req, res): Promise<void> => {
+  res.setHeader("Cache-Control", "no-store");
   const ip = req.ip ?? "unknown";
   if (isAdminRateLimited(ip)) {
     res.status(429).json({ error: "تم إيقاف محاولات الإدارة مؤقتًا. حاول لاحقًا." });
@@ -298,6 +368,7 @@ router.post("/remittances/admin/import", async (req, res): Promise<void> => {
       })),
     );
   });
+  queryCache.clear();
 
   res.json(
     ImportRemittancesResponse.parse({

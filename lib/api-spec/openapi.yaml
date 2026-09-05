@@ -179,6 +179,7 @@ components:
         content:
           type: string
           minLength: 1
+          maxLength: 7500000
         encoding:
           type: string
           enum: [utf-8, base64]
