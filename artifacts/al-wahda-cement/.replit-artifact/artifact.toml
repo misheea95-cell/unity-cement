@@ -1,0 +1,28 @@
+kind = "web"
+previewPath = "/"
+title = "Al-Wahda Cement Remittance Search"
+description = "A secure Arabic RTL remittance lookup app for Al-Wahda Cement, with employee-code-only public search and protected monthly CSV/Excel administration."
+version = "1.0.0"
+id = "artifacts/al-wahda-cement"
+router = "path"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 18877
+
+[services.development]
+run = "pnpm --filter @workspace/al-wahda-cement run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/al-wahda-cement", "run", "build" ]
+serve = "static"
+publicDir = "artifacts/al-wahda-cement/dist/public"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "18877"
+BASE_PATH = "/"
