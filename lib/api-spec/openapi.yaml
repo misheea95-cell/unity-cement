@@ -10,6 +10,10 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: remittances
+    description: Secure remittance lookup operations
+  - name: administration
+    description: Protected monthly data administration
 paths:
   /healthz:
     get:
@@ -24,6 +28,103 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /remittances/query:
+    get:
+      operationId: queryRemittance
+      tags: [remittances]
+      summary: Look up one remittance by employee code
+      description: Returns only the matching remittance record. No list or alternate search keys are supported.
+      parameters:
+        - name: employeeCode
+          in: query
+          required: true
+          description: رقم كود الموظف
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 64
+      responses:
+        "200":
+          description: Matching remittance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Remittance"
+        "404":
+          description: No matching remittance
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: Invalid employee code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /remittances/admin/summary:
+    get:
+      operationId: getAdminSummary
+      tags: [administration]
+      summary: Get protected dataset summary
+      parameters:
+        - name: x-admin-key
+          in: header
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        "200":
+          description: Dataset summary without records
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminSummary"
+        "401":
+          description: Invalid admin key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /remittances/admin/import:
+    post:
+      operationId: importRemittances
+      tags: [administration]
+      summary: Replace the remittance dataset from a CSV or XLSX payload
+      description: Protected endpoint. The raw dataset is parsed server-side and is never served back to clients.
+      parameters:
+        - name: x-admin-key
+          in: header
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RemittanceImportInput"
+      responses:
+        "200":
+          description: Import completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportResult"
+        "400":
+          description: Invalid file or columns
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Invalid admin key
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +134,77 @@ components:
           type: string
       required:
         - status
+    Remittance:
+      type: object
+      properties:
+        employeeCode:
+          type: string
+        transferNumber:
+          type: string
+        currency:
+          type: string
+        sender:
+          type: string
+        beneficiary:
+          type: string
+      required:
+        - employeeCode
+        - transferNumber
+        - currency
+        - sender
+        - beneficiary
+    AdminSummary:
+      type: object
+      properties:
+        recordCount:
+          type: number
+          minimum: 0
+        fileName:
+          type: ["string", "null"]
+        updatedAt:
+          type: ["string", "null"]
+          format: date-time
+      required:
+        - recordCount
+        - fileName
+        - updatedAt
+    RemittanceImportInput:
+      type: object
+      properties:
+        fileName:
+          type: string
+          minLength: 1
+          maxLength: 255
+        content:
+          type: string
+          minLength: 1
+        encoding:
+          type: string
+          enum: [utf-8, base64]
+      required:
+        - fileName
+        - content
+        - encoding
+    ImportResult:
+      type: object
+      properties:
+        importedCount:
+          type: number
+          minimum: 0
+        fileName:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - importedCount
+        - fileName
+        - updatedAt
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
 
