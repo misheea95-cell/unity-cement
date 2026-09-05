@@ -17,6 +17,9 @@ const router: IRouter = Router();
 const requestWindowMs = 60_000;
 const requestLimit = 5;
 const requestCounts = new Map<string, { count: number; resetAt: number }>();
+const adminWindowMs = 15 * 60_000;
+const adminAttemptLimit = 5;
+const adminAttempts = new Map<string, { count: number; resetAt: number }>();
 
 type ParsedRow = {
   employeeCode: string;
@@ -49,6 +52,21 @@ function isRateLimited(ip: string): boolean {
   }
   current.count += 1;
   return current.count > requestLimit;
+}
+
+function isAdminRateLimited(ip: string): boolean {
+  const now = Date.now();
+  const current = adminAttempts.get(ip);
+  if (!current || current.resetAt <= now) {
+    adminAttempts.set(ip, { count: 1, resetAt: now + adminWindowMs });
+    return false;
+  }
+  current.count += 1;
+  return current.count > adminAttemptLimit;
+}
+
+function clearAdminAttempts(ip: string): void {
+  adminAttempts.delete(ip);
 }
 
 function normalizeEmployeeCode(value: string): string {
@@ -201,6 +219,11 @@ router.get("/remittances/query", async (req, res): Promise<void> => {
 });
 
 router.get("/remittances/admin/summary", async (req, res): Promise<void> => {
+  const ip = req.ip ?? "unknown";
+  if (isAdminRateLimited(ip)) {
+    res.status(429).json({ error: "تم إيقاف محاولات الإدارة مؤقتًا. حاول لاحقًا." });
+    return;
+  }
   const parsedHeader = GetAdminSummaryHeader.safeParse({
     "x-admin-key": req.header("x-admin-key"),
   });
@@ -208,6 +231,7 @@ router.get("/remittances/admin/summary", async (req, res): Promise<void> => {
     res.status(401).json({ error: "مفتاح الإدارة غير صالح." });
     return;
   }
+  clearAdminAttempts(ip);
 
   const [summary] = await db
     .select({
@@ -229,6 +253,11 @@ router.get("/remittances/admin/summary", async (req, res): Promise<void> => {
 });
 
 router.post("/remittances/admin/import", async (req, res): Promise<void> => {
+  const ip = req.ip ?? "unknown";
+  if (isAdminRateLimited(ip)) {
+    res.status(429).json({ error: "تم إيقاف محاولات الإدارة مؤقتًا. حاول لاحقًا." });
+    return;
+  }
   const parsedHeader = ImportRemittancesHeader.safeParse({
     "x-admin-key": req.header("x-admin-key"),
   });
@@ -236,6 +265,7 @@ router.post("/remittances/admin/import", async (req, res): Promise<void> => {
     res.status(401).json({ error: "مفتاح الإدارة غير صالح." });
     return;
   }
+  clearAdminAttempts(ip);
   const parsedBody = ImportRemittancesBody.safeParse(req.body);
   if (!parsedBody.success) {
     res.status(400).json({ error: "بيانات الملف غير صالحة." });

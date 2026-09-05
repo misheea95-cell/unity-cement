@@ -71,12 +71,7 @@ function PageHeader({ admin = false }: { admin?: boolean }) {
               الاستعلام العام
               <ArrowUpLeft className="size-3.5" />
             </Link>
-          ) : (
-            <Link href="/admin" className="focus-ring flex items-center gap-1.5 rounded-full border border-primary/10 bg-primary px-3.5 py-2 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90" data-testid="link-admin">
-              <LockKeyhole className="size-3.5" />
-              دخول الإدارة
-            </Link>
-          )}
+          ) : null}
         </div>
         <div className="flex items-center gap-2 sm:hidden">
           <div className="flex size-9 items-center justify-center rounded-full border border-border bg-white/60 text-primary">
@@ -86,12 +81,7 @@ function PageHeader({ admin = false }: { admin?: boolean }) {
             <Link href="/" className="focus-ring rounded-full border border-primary/10 bg-white/70 px-3 py-2 text-[11px] font-bold text-primary" data-testid="link-public-search-mobile">
               الاستعلام العام
             </Link>
-          ) : (
-            <Link href="/admin" className="focus-ring flex items-center gap-1 rounded-full bg-primary px-3 py-2 text-[11px] font-bold text-primary-foreground" data-testid="link-admin-mobile">
-              <LockKeyhole className="size-3.5" />
-              الإدارة
-            </Link>
-          )}
+          ) : null}
         </div>
       </div>
     </header>
@@ -103,14 +93,11 @@ function PageFooter() {
     <footer className="relative z-10 mx-auto mt-auto w-full max-w-7xl px-5 pb-6 pt-10 sm:px-8 lg:px-12">
       <div className="flex flex-col items-center justify-between gap-3 border-t border-border/70 pt-5 text-center text-[11px] font-medium text-muted-foreground sm:flex-row sm:text-right">
         <span data-testid="text-footer">جميع الحقوق محفوظة © شركة أسمنت الوحدة.</span>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
           <span className="flex items-center gap-2">
             <span className="size-1.5 rounded-full bg-accent" />
             <span>التحقق يتم عبر كود الموظف فقط</span>
           </span>
-          <Link href="/admin" className="focus-ring rounded-md px-1.5 py-1 font-bold text-primary transition-colors hover:bg-secondary" data-testid="link-admin-footer">
-            دخول الإدارة
-          </Link>
         </div>
       </div>
     </footer>
