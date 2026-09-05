@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/"
-title = "Al-Wahda Cement Remittance Search"
+title = "unitycement"
 description = "A secure Arabic RTL remittance lookup app for Al-Wahda Cement, with employee-code-only public search and protected monthly CSV/Excel administration."
 version = "1.0.0"
 id = "artifacts/al-wahda-cement"
