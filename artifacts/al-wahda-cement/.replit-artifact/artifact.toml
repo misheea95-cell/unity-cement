@@ -1,5 +1,5 @@
 kind = "web"
-previewPath = "/"
+previewPath = "/site-Ar/"
 title = "unitycement"
 description = "A secure Arabic RTL remittance lookup app for Al-Wahda Cement, with employee-code-only public search and protected monthly CSV/Excel administration."
 version = "1.0.0"
@@ -8,7 +8,7 @@ router = "path"
 
 [[services]]
 name = "web"
-paths = [ "/" ]
+paths = [ "/site-Ar/" ]
 localPort = 18877
 
 [services.development]
@@ -25,4 +25,4 @@ to = "/index.html"
 
 [services.env]
 PORT = "18877"
-BASE_PATH = "/"
+BASE_PATH = "/site-Ar/"
